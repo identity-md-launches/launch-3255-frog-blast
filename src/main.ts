@@ -140,7 +140,8 @@ function startMatch(m: Mode) {
   input.clear();
   releaseTouch();
   input.solo = m.kind === 'solo';
-  pauseReasons.clear();
+  // Only the player's own pause ends here; a host pause lasts until the host resumes.
+  pauseReasons.delete('user');
   view.particles = [];
   view.shake = 0;
   view.boardKey = null;
@@ -151,6 +152,21 @@ function startMatch(m: Mode) {
   buildRoster();
   syncTouch();
   fitArena();
+  enterPlay();
+}
+
+/** Hand control to the arena, or show the host pause if the host still holds one. */
+function enterPlay() {
+  hideOverlay();
+  last = performance.now();
+  acc = 0;
+  if (isPaused()) {
+    input.clear();
+    releaseTouch();
+    sound.suspend();
+    showPause();
+    return;
+  }
   input.active = true;
   els.arena.focus({ preventScroll: true });
   sound.resume();
@@ -167,7 +183,7 @@ function showScreen(s: 'menu' | 'game') {
 function quitToMenu() {
   game = null;
   controllers = null;
-  pauseReasons.clear();
+  pauseReasons.delete('user');
   hideOverlay();
   showScreen('menu');
   $('play-solo').focus();
@@ -312,7 +328,7 @@ function onPhaseChange(g: Game) {
         : r.reason === 'timeout' ? 'Time ran out with more than one frog standing. Nobody gets the win.'
           : 'The last frogs went out together. Nobody gets the win.';
       showOverlay('round', title, text, [
-        { label: 'Next round', primary: true, run: () => { nextRound(g); controllers?.reset(); input.clear(); hideOverlay(); input.active = true; els.arena.focus({ preventScroll: true }); } },
+        { label: 'Next round', primary: true, run: () => { nextRound(g); controllers?.reset(); input.clear(); enterPlay(); } },
         { label: 'Quit to menu', run: quitToMenu },
       ], true);
       els.live.textContent = title;

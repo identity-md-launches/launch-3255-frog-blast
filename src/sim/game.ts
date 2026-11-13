@@ -49,13 +49,30 @@ export interface Bomb {
   placedTick: number;
 }
 
-export interface Fire {
-  until: number; // last damaging tick (exclusive)
-  start: number;
-  owner: number; // bomb owner whose ray reached the tile first (lowest bomb id)
-  owners: number[]; // every owner whose ray covers the tile this blast
+/** One bomb's damaging blast on a tile. Each lasts BLAST_TICKS from its own detonation. */
+export interface FireHit {
+  owner: number;
   bombId: number;
+  until: number; // last damaging tick (exclusive)
+}
+
+export interface Fire {
+  until: number; // latest `until` of the active hits (exclusive)
+  start: number; // tick of the most recent blast on this tile (animation)
+  owner: number; // owner of the oldest active hit (lowest bomb id)
+  owners: number[]; // owners of every active hit, oldest bomb first
+  bombId: number; // oldest active hit
+  hits: FireHit[]; // every still-damaging blast on this tile, sorted by bomb id
   kind: 'center' | 'h' | 'v' | 'end';
+}
+
+function syncFire(f: Fire) {
+  f.hits.sort((a, b) => a.bombId - b.bombId);
+  f.until = Math.max(...f.hits.map((h) => h.until));
+  f.owner = f.hits[0].owner;
+  f.bombId = f.hits[0].bombId;
+  f.owners = [];
+  for (const h of f.hits) if (!f.owners.includes(h.owner)) f.owners.push(h.owner);
 }
 
 export interface PlayerInput {
@@ -272,7 +289,13 @@ export function nextRound(g: Game) {
 }
 
 function expireFire(g: Game) {
-  for (const [k, f] of g.fire) if (g.tick >= f.until) g.fire.delete(k);
+  // Each blast expires on its own schedule; a later blast on the same tile never
+  // erases an earlier owner's still-damaging contribution.
+  for (const [k, f] of g.fire) {
+    const live = f.hits.filter((h) => g.tick < h.until);
+    if (!live.length) { g.fire.delete(k); continue; }
+    if (live.length !== f.hits.length) { f.hits = live; syncFire(f); }
+  }
   for (const [k, t] of g.burning) if (g.tick - t > BLAST_TICKS) g.burning.delete(k);
 }
 
@@ -352,11 +375,12 @@ function playTick(g: Game, inputs: PlayerInput[]) {
     p.alive = false;
     p.outTick = g.tick;
     p.passBombs = [];
-    g.events.push({ type: 'out', player: p.id, by: f.owners.find((o) => o !== p.id) ?? p.id });
+    g.events.push({ type: 'out', player: p.id, by: killerOf(f, p.id) ?? p.id });
   }
   for (const { p, f } of out) {
-    // Credit one opponent per elimination; a frog caught only by its own blast earns nothing.
-    const killer = f.owners.find((o) => o !== p.id);
+    // Credit one opponent per elimination (owner of the oldest active opposing blast);
+    // a frog caught only by its own blast earns nothing.
+    const killer = killerOf(f, p.id);
     if (killer !== undefined) {
       g.players[killer].score += SCORE_KILL;
       g.players[killer].kills++;
@@ -370,26 +394,34 @@ function playTick(g: Game, inputs: PlayerInput[]) {
   else if (g.roundTick >= ROUND_TICKS) endRound(g, null, 'timeout');
 }
 
+/** Opponent credited for an elimination: every hit left on the tile is still active. */
+function killerOf(f: Fire, victim: number): number | undefined {
+  return f.hits.find((h) => h.owner !== victim)?.owner;
+}
+
 /**
  * Explode a set of bombs and everything they set off this tick. Rays are traced
  * against the crate layout at the start of the tick, so a crate always stops the
  * ray that reaches it first, and a crate hit by several rays breaks once and is
- * credited to one owner (the oldest bomb, deterministically).
+ * credited to one owner (the oldest bomb, deterministically). A bomb in a ray's
+ * path is set off but does not stop the ray, so every bomb's footprint depends
+ * only on the board, never on the order the chain is processed in.
  */
 function detonate(g: Game, initial: Bomb[]) {
   const queue = [...initial].sort((a, b) => a.id - b.id);
   const done = new Set<number>();
   const crateOwner = new Map<number, Bomb>();
-  const newFire = new Map<number, Fire>();
+  const newFire = new Map<number, { hits: FireHit[]; kind: Fire['kind'] }>();
   const until = g.tick + BLAST_TICKS;
   const putFire = (k: number, b: Bomb, kind: Fire['kind']) => {
     const prev = newFire.get(k);
+    const hit = { owner: b.owner, bombId: b.id, until };
     if (prev) {
-      if (!prev.owners.includes(b.owner)) prev.owners.push(b.owner);
+      prev.hits.push(hit);
       if (prev.kind !== kind) prev.kind = 'center';
       return;
     }
-    newFire.set(k, { until, start: g.tick, owner: b.owner, owners: [b.owner], bombId: b.id, kind });
+    newFire.set(k, { hits: [hit], kind });
   };
   while (queue.length) {
     queue.sort((a, b) => a.id - b.id);
@@ -413,16 +445,26 @@ function detonate(g: Game, initial: Bomb[]) {
         }
         putFire(k, b, r === b.range ? 'end' : dx ? 'h' : 'v');
         const other = bombAt(g, x, y);
-        if (other && !done.has(other.id)) {
-          queue.push(other); // chain: keeps its own owner
-          break;
-        }
+        if (other && !done.has(other.id)) queue.push(other); // chain: keeps its own owner; the ray carries on
         g.powerups.delete(k); // exposed upgrades burn
       }
     }
   }
   g.bombs = g.bombs.filter((b) => !done.has(b.id));
-  for (const [k, f] of newFire) g.fire.set(k, f);
+  // Merge with fire still burning from earlier ticks instead of replacing it.
+  for (const [k, n] of newFire) {
+    const prev = g.fire.get(k);
+    if (prev) {
+      prev.hits.push(...n.hits);
+      prev.start = g.tick;
+      if (prev.kind !== n.kind) prev.kind = 'center';
+      syncFire(prev);
+    } else {
+      const f: Fire = { until, start: g.tick, owner: 0, owners: [], bombId: 0, hits: n.hits, kind: n.kind };
+      syncFire(f);
+      g.fire.set(k, f);
+    }
+  }
   for (const [k, b] of crateOwner) {
     g.tiles[k] = Tile.Floor;
     g.burning.set(k, g.tick);

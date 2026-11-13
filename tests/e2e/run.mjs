@@ -133,6 +133,7 @@ const browser = await chromium.launch();
     await page.keyboard.down('Space');
     await page.keyboard.down('Space');
     await page.keyboard.down('Space');
+    await sleep(120); // let several ticks run while Space is still held
     s = await st(page);
     const mine = s.bombs.filter((b) => b.owner === 0).length;
     assert(mine === 1, `expected 1 bomb, got ${mine}`);
@@ -264,6 +265,28 @@ const browser = await chromium.launch();
   await ctx.close();
 }
 
+// ---------- the whole arena fits the viewport ----------
+await test('desktop and mobile: all 13 rows of the arena fit the viewport without scrolling', async () => {
+  const bad = [];
+  for (const [w, h] of [[1440, 900], [1280, 720], [900, 700], [390, 844], [320, 568]]) {
+    const { ctx } = await newContext(browser, { viewport: { width: w, height: h } });
+    const { page } = await openGame(ctx, '?e2e&seed=42');
+    for (const btn of ['#play-solo', '#play-versus']) {
+      await page.click(btn);
+      await sleep(400);
+      const r = await page.evaluate(() => {
+        const a = document.getElementById('arena').getBoundingClientRect();
+        return { top: a.top, bottom: a.bottom, right: a.right, width: a.width, height: a.height, vw: innerWidth, vh: innerHeight, sh: document.scrollingElement.scrollHeight };
+      });
+      if (r.top < 0 || r.bottom > r.vh + 0.5 || r.right > r.vw + 0.5 || r.sh > r.vh || Math.abs(r.width / r.height - 15 / 13) > 0.02) bad.push(`${w}x${h} ${btn} ${JSON.stringify(r)}`);
+      await page.goto(`${BASE}?e2e&seed=42`);
+      await page.waitForFunction(() => !!window.__frogBlast);
+    }
+    await ctx.close();
+  }
+  assert(bad.length === 0, bad.join(' | '));
+});
+
 // ---------- mobile solo with multitouch ----------
 {
   const { ctx } = await newContext(browser, { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 });
@@ -391,6 +414,45 @@ const browser = await chromium.launch();
     assert(over.length === 1, 'rematch start must not report');
     await page.screenshot({ path: path.join(shotDir, 'iframe-1280.png') });
     assert(errors.length === 0 && external.length === 0, errors.concat(external).join(' | '));
+  });
+
+  await test('bridge: a host pause survives Play, Restart match and Next round until a matching resume', async () => {
+    const frozen = async (label) => {
+      const a = await fst();
+      await sleep(350);
+      const b = await fst();
+      assert(a.paused && b.reasons.includes('host') && a.tick === b.tick && a.roundTick === b.roundTick, `${label}: ${JSON.stringify({ r: b.reasons, t: [a.tick, b.tick], o: b.overlay })}`);
+      assert(b.overlay === 'pause' && /host page paused/.test(await frame.textContent('#ov-text')), `${label}: host overlay ${b.overlay}`);
+    };
+    // Paused by the host while on the menu, then the player starts a match.
+    await frame.locator('#arena').press('p');
+    await sleep(400);
+    await frame.click('#ov-actions button:has-text("Quit to menu")');
+    await page.evaluate(() => window.send({ protocol: 'pepe-game/1', type: 'pause', channel: 'chan-1' }));
+    await sleep(100);
+    await frame.click('#play-solo');
+    await frozen('play solo');
+    // The player's own pause and Restart match must not lift the host pause.
+    await frame.locator('#arena').press('p');
+    await sleep(400);
+    assert((await fst()).reasons.length === 2, 'user + host');
+    await frame.click('#ov-actions button:has-text("Restart match")');
+    await frozen('restart');
+    await page.evaluate(() => window.send({ protocol: 'pepe-game/1', type: 'resume', channel: 'other' }));
+    await frozen('wrong-channel resume');
+    await page.evaluate(() => window.send({ protocol: 'pepe-game/1', type: 'resume', channel: 'chan-1' }));
+    await frame.waitForFunction(() => window.__frogBlast.state()?.phase === 'playing');
+    // Host pause sent while the round result is on screen holds the next round too.
+    await frame.evaluate(() => { window.__frogBlast.eliminateAllBut(0); window.__frogBlast.run(200); });
+    await page.evaluate(() => window.send({ protocol: 'pepe-game/1', type: 'pause', channel: 'chan-1' }));
+    await sleep(400);
+    await frame.click('#ov-actions button:has-text("Next round")');
+    await frozen('next round');
+    await page.evaluate(() => window.send({ protocol: 'pepe-game/1', type: 'resume', channel: 'chan-1' }));
+    await sleep(300);
+    const s = await fst();
+    assert(!s.paused && s.overlay === '' && s.tick > 0, `did not resume ${JSON.stringify(s.reasons)}`);
+    assert((await msgs()).filter((x) => x.type === 'gameover').length === 1, 'no extra gameover');
   });
   await ctx.close();
 }

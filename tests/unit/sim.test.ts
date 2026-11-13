@@ -134,6 +134,57 @@ describe('bombs and movement', () => {
   });
 });
 
+describe('simultaneous blasts and ownership', () => {
+  // Two bombs on one row detonate on the same tick; only their ids differ.
+  const chainOutcome = (swap: boolean) => {
+    const g = emptyGame(['p1', 'p2']);
+    place(g, 0, 7, 3);
+    place(g, 1, 13, 11);
+    g.bombs = [
+      { id: swap ? 2 : 1, owner: 0, x: 1, y: 3, fuse: 1, range: 6, placedTick: 0 },
+      { id: swap ? 1 : 2, owner: 1, x: 3, y: 3, fuse: 1, range: 2, placedTick: 0 },
+    ];
+    g.nextBombId = 3;
+    step(g, [still, still]);
+    const row: number[] = [];
+    for (let x = 0; x < 15; x++) if (g.fire.has(idx(x, 3))) row.push(x);
+    return { row, p1: g.players[0].alive, results: g.results.map((r) => r.winner) };
+  };
+
+  it('blast footprint and round outcome do not depend on bomb id order', () => {
+    const a = chainOutcome(false);
+    expect(a).toEqual(chainOutcome(true));
+    // A bomb in the path is set off but the ray keeps its full range.
+    expect(a.row).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(a.p1).toBe(false);
+  });
+
+  it('a later blast does not erase an earlier opponent blast still burning on the tile', () => {
+    const g = emptyGame(['p1', 'p2', 'bot', 'bot']);
+    park(g, 0, 2, 3);
+    place(g, 1, 3, 3.51);
+    g.bombs = [{ id: 1, owner: 0, x: 1, y: 3, fuse: 1, range: 3, placedTick: 0 }];
+    g.nextBombId = 2;
+    step(g, [still, still, still, still]);
+    expect(g.fire.get(idx(3, 3))?.owners).toEqual([0]);
+    expect(g.players[1].alive).toBe(true);
+    // P2 walks into P1's fire while dropping a bomb that chains at once.
+    step(g, [still, { dir: Dir.Up, bomb: true }, still, still]);
+    expect(g.players[1].alive).toBe(false);
+    expect(g.fire.get(idx(3, 3))?.owners).toEqual([0, 1]);
+    expect(g.events).toContainEqual({ type: 'out', player: 1, by: 0 });
+    expect(g.players[0].kills).toBe(1);
+    expect(g.players[0].score).toBe(100);
+    expect(g.players[1].score).toBe(0);
+    // P1's contribution expires on its own schedule; P2's later one keeps burning.
+    const f = g.fire.get(idx(3, 3))!;
+    run(g, f.hits[0].until - g.tick);
+    expect(g.fire.get(idx(3, 3))?.owners).toEqual([1]);
+    run(g, 1);
+    expect(g.fire.has(idx(3, 3))).toBe(false);
+  });
+});
+
 describe('rounds and match', () => {
   it('simultaneous elimination of the last two is a draw with no win', () => {
     const g = emptyGame(['p1', 'p2']);

@@ -25,7 +25,12 @@ the game and clears held inputs.
   with several survivors, is a draw with no win.
 - Start: 1 bomb, blast range 2. Fuse 2.5 s (150 ticks), damaging blast 0.45 s (27 ticks).
 - Blasts run in four directions; pillars/walls stop them; the first crate in a ray breaks and stops it;
-  a blast reaching a bomb detonates it immediately and that bomb keeps its own owner.
+  a blast reaching a bomb detonates it immediately (the ray carries on to its full range) and that bomb
+  keeps its own owner. Each bomb's footprint depends only on the board, so the order bombs in one chain
+  are processed in cannot change who is hit.
+- Fire on a tile keeps every blast that is still burning there, each expiring 0.45 s after its own
+  detonation. A frog caught in fire is credited to the owner of the oldest active rival blast on that
+  tile, so a later blast (even the victim's own) never erases a rival's elimination.
 - You can step off a bomb you are standing on, but not back onto it.
 - Upgrades hidden in crates: extra bomb (max 6), longer blast (max 7), faster hops (max +4 steps).
   Exposed upgrades burn in later blasts.
@@ -85,7 +90,8 @@ Implemented in `src/ui/bridge.ts`. Messages are accepted only when `event.source
 
 Replies use `targetOrigin "*"` because a sandboxed frame has an opaque origin. Without `init` the game
 runs standalone and posts nothing. A host pause and a player pause are tracked separately, so a host
-`resume` does not dismiss a pause the player chose. No host message schema file was supplied with
+`resume` does not dismiss a pause the player chose, and Play, Restart match, Rematch, Next round or Quit
+clear only the player's pause: a host pause stays in force (with its overlay) until a matching `resume`. No host message schema file was supplied with
 the task, so these field names follow the brief's wording; adjust `src/ui/bridge.ts` if the host
 schema differs.
 

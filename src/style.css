@@ -89,7 +89,8 @@ h1 { font-size: var(--fs-5); font-weight: 800; letter-spacing: -0.02em; }
 }
 
 /* Game screen */
-.game { height: 100dvh; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+/* flex: none so the screen is exactly one viewport tall and fitArena measures that, not grown content. */
+.game { flex: none; height: 100dvh; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
 .hud {
   display: grid; grid-template-columns: 1fr auto auto; gap: var(--sp-2); align-items: center;
   padding: var(--sp-2) var(--sp-3); background: var(--surface); border-bottom: 2px solid var(--line);

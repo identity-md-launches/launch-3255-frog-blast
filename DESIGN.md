@@ -62,7 +62,8 @@ Spacing scale `--sp-1..6` = 4, 8, 12, 16, 24, 32px. Radii `--r-1` 8px (buttons, 
 - **Menu** (`.menu`): max width 1100px, 16px padding; at ≥900px two columns (actions 320–400px, preview
   fills the rest) with 32px gaps; under 900px one column with the arena preview first (max 440px wide), so
   at 390px the title, the arena and **Play solo** are all on the first screen.
-- **Game** (`.game`): full `100dvh` column: HUD, stage, touch controls (solo on touch devices only).
+- **Game** (`.game`): exactly one viewport tall (`flex: none; height: 100dvh`, so content cannot grow it)
+  column: HUD, stage, touch controls (solo on touch devices only).
   `fitArena()` in `src/main.ts` sizes the arena canvas to the largest 15:13 rectangle the stage allows
   (ResizeObserver), so it never overflows and never scrolls. The canvas has a fixed 720×624 drawing
   buffer (48px per tile).
