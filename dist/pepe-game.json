@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "pepe-browser-game/1",
+  "title": "Frog Blast",
+  "version": "1.0.0",
+  "summary": "Drop bombs, blast through crates and outsmart rival frogs.",
+  "description": "A classic garden bomb arena with chain reactions and collectible upgrades.\n\nPlay solo against bots or challenge a friend on the same keyboard. First to three round wins takes the match.",
+  "controls": "Player 1: WASD and Space. Player 2: arrow keys and Enter. Mobile: directional pad and bomb button. P or Escape pauses.",
+  "genre": "arcade",
+  "players": 2,
+  "mobile": true,
+  "entry": "index.html",
+  "cover": "cover.svg"
+}

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Frog Blast: garden bomb arena</title>
+    <meta name="description" content="Drop bombs, blast through crates and outsmart rival frogs. Play solo against bots or a friend on one keyboard." />
+    <meta name="theme-color" content="#0e3533" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Frog Blast" />
+    <meta property="og:description" content="Drop bombs, blast through crates and outsmart rival frogs." />
+    <meta property="og:image" content="cover.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <script type="module" crossorigin src="./assets/index-C4Mt3BBx.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-DuPtOYcV.css">
+  </head>
+  <body>
+    <main id="app">
+      <section id="menu" class="screen menu" aria-labelledby="title">
+        <div class="menu-head">
+          <img class="logo" src="logo.svg" alt="" width="72" height="72" />
+          <div>
+            <h1 id="title">Frog Blast</h1>
+            <p class="lede">A garden bomb arena. Last frog standing wins the round; first to three wins the match.</p>
+          </div>
+        </div>
+        <div class="menu-body">
+          <div class="menu-actions">
+            <div class="mode">
+              <button id="play-solo" class="btn btn-primary btn-big" type="button">Play solo</button>
+              <fieldset class="seg" aria-label="Bot difficulty">
+                <legend class="sr-only">Bot difficulty</legend>
+                <label><input type="radio" name="difficulty" value="easy" /> <span>Easy bots</span></label>
+                <label><input type="radio" name="difficulty" value="normal" checked /> <span>Normal bots</span></label>
+              </fieldset>
+              <p class="hint">You against three bots. Keyboard or touch.</p>
+            </div>
+            <div class="mode">
+              <button id="play-versus" class="btn btn-secondary btn-big" type="button">Local versus</button>
+              <label class="check"><input id="versus-bots" type="checkbox" /> <span>Add two bots</span></label>
+              <p class="hint">Two players sharing one keyboard. Not available on touch screens.</p>
+            </div>
+            <div class="menu-row">
+              <button id="open-howto" class="btn btn-ghost" type="button">How to play</button>
+              <button id="menu-sound" class="btn btn-ghost" type="button" aria-pressed="true">Sound on</button>
+              <label class="volume"><span>Volume</span><input id="volume" type="range" min="0" max="100" step="5" value="70" /></label>
+            </div>
+            <p id="storage-note" class="hint" hidden>Settings last for this visit only: storage is blocked here.</p>
+          </div>
+          <canvas id="preview" class="preview" width="720" height="624" aria-label="Arena preview: four frogs in a garden maze of stone pillars and wooden crates" role="img"></canvas>
+        </div>
+      </section>
+
+      <section id="game" class="screen game" hidden aria-label="Arena">
+        <div class="hud" id="hud">
+          <ol class="roster" id="roster" aria-label="Contestants"></ol>
+          <div class="hud-mid">
+            <div class="timer" id="timer" aria-label="Round time left">2:00</div>
+            <div class="round" id="round-label">Round 1</div>
+          </div>
+          <div class="hud-btns">
+            <button id="btn-mute" class="icon-btn" type="button" aria-pressed="false" aria-label="Mute sound">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor"/><path class="wave" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path class="cross" d="M16 9l6 6M22 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+            </button>
+            <button id="btn-pause" class="icon-btn" type="button" aria-label="Pause (P or Escape)">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="stage" id="stage">
+          <canvas id="arena" width="720" height="624" tabindex="0" aria-label="Game arena. Player 1: W A S D to move, Space for a bomb."></canvas>
+          <div id="banner" class="banner" aria-hidden="true"></div>
+          <div id="overlay" class="overlay" hidden>
+            <div class="panel" role="dialog" aria-modal="true" aria-labelledby="ov-title">
+              <h2 id="ov-title"></h2>
+              <p id="ov-text" class="ov-text"></p>
+              <table id="standings" class="standings" hidden>
+                <thead><tr><th scope="col">Frog</th><th scope="col">Wins</th><th scope="col">Score</th></tr></thead>
+                <tbody></tbody>
+              </table>
+              <div id="ov-actions" class="ov-actions"></div>
+            </div>
+          </div>
+        </div>
+        <div class="touch" id="touch" aria-hidden="true">
+          <div class="dpad" id="dpad"><span class="arrow up"></span><span class="arrow right"></span><span class="arrow down"></span><span class="arrow left"></span></div>
+          <button class="bomb-btn" id="bomb-btn" type="button" tabindex="-1">Bomb</button>
+        </div>
+        <p class="sr-only" id="live" aria-live="polite"></p>
+      </section>
+
+      <dialog id="howto" class="howto" aria-labelledby="howto-title">
+        <h2 id="howto-title">How to play</h2>
+        <div class="howto-grid">
+          <div>
+            <h3>Controls</h3>
+            <dl class="keys">
+              <dt>Player 1</dt><dd><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move, <kbd>Space</kbd> drops a bomb</dd>
+              <dt>Player 2</dt><dd>Arrow keys move, <kbd>Enter</kbd> drops a bomb</dd>
+              <dt>Touch</dt><dd>Solo only: d-pad on the left, bomb button on the right</dd>
+              <dt>Pause</dt><dd><kbd>P</kbd> or <kbd>Esc</kbd>, or the pause button</dd>
+            </dl>
+          </div>
+          <div>
+            <h3>Bombs are dangerous to everyone</h3>
+            <ul class="rules">
+              <li>A bomb bursts after 2.5 seconds. Its blast runs in four straight lines and hurts any frog in it, including you.</li>
+              <li>Step off your bomb right away. You cannot walk back onto it.</li>
+              <li>Stone stops a blast. The first crate in a line breaks and stops it too.</li>
+              <li>A blast that reaches another bomb sets it off at once.</li>
+              <li>Crates can hide upgrades: <strong>extra bomb</strong>, <strong>longer blast</strong> and <strong>faster hops</strong>.</li>
+            </ul>
+            <h3>Winning</h3>
+            <ul class="rules">
+              <li>One life per round, 2 minutes per round. Last frog standing wins it.</li>
+              <li>If the last frogs fall together or time runs out, the round is a draw.</li>
+              <li>First to three round wins takes the match. Score: 100 per rival out, 10 per crate, 25 per round won.</li>
+            </ul>
+          </div>
+        </div>
+        <form method="dialog"><button class="btn btn-primary" type="submit">Got it</button></form>
+      </dialog>
+    </main>
+  </body>
+</html>
